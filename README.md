@@ -24,7 +24,7 @@ This bot stops that automated spam pattern at the source by immediately deleting
 
 ### Origin & Credits
 
-This project was **vibecoded** using **Gemini 3.6 Flash** and **Claude 3.7 Sonnet / Claude Opus 5** via Hermes Agent.
+This project was **vibecoded** using **Gemini 3.6 Flash** and **Claude Opus 5** via Hermes Agent.
 
 ---
 
