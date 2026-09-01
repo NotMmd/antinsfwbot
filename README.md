@@ -1,86 +1,92 @@
-# Telegram Anti-NSFW Heart Emoji Bot
+# Telegram Anti-NSFW & Heart Emoji Shield Bot 🛡️
 
-An automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart emoji spam sent under newly published channel posts within a customizable time window (default 20 minutes). When detected, the bot automatically deletes the message, mutes the user, and sends an alert with interactive action buttons (**Ban**, **Unmute**, **Keep Muted**) to the admin's DM.
+An advanced, automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart/suggestive emoji spam posted under newly published channel posts within a customizable time window (default 30 minutes).
 
----
-
-### Why This Bot Exists
-
-Automated NSFW bot accounts frequently target Telegram channel discussion groups by posting single heart emojis (`❤️`, `💗`, `❤️‍🔥`, etc.) under newly published channel posts within minutes of release. These userbots aim to stay top-of-comment so group members click their profile links, leading to NSFW promotion channels or malware distribution.
-
-This bot stops that automated spam pattern at the source by immediately deleting single heart emoji comments sent within the first 15–20 minutes of publication and muting the account for admin review.
+When detected, the bot automatically deletes the offending message, mutes the user, deletes the user's join message, and sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to the admin's private chat.
 
 ---
 
-### Features
+## 🎯 Why This Bot Exists
 
-- 🎯 **Targeted Spam Prevention:** Filters messages containing ONLY a single heart emoji (`🩷❤️🧡💛💚🩵💙💜🖤🩶🤍🤎❤️‍🔥❤️‍🩹❣💕💞💓💗💖💘💝`).
-- ⏱️ **Customizable Time Window:** Configurable via `WINDOW_MINUTES` environment variable (defaults to 20 minutes).
-- 🛠️ **Emoji Variation Normalization:** Handles Unicode variation selectors (VS16, ZWJ) cleanly.
-- 🗄️ **Persistent Thread Mapping:** SQLite database tracks channel posts and auto-forwarded discussion thread IDs across bot restarts.
-- 🚨 **Admin DM Control Panel:** Forwards the offending message to the admin's direct message along with interactive action buttons (**Ban User**, **Unmute User**, **Keep Muted**).
+Automated NSFW bot accounts frequently target Telegram channel discussion groups by posting single heart/mouth emojis (`❤️`, `💗`, `❤️‍🔥`, `🫦`, `👄`) under newly published channel posts within minutes of release. 
 
----
+These userbots aim to stay top-of-comment so group members click their profile pictures/bios, leading to NSFW promotion channels or malware distribution.
 
-### Origin & Credits
-
-This project was **vibecoded** using **Gemini 3.6 Flash** and **Claude Opus 5** via Hermes Agent.
+This bot intercepts and eliminates this spam pattern by:
+1. Learning channel post timestamps and discussion thread roots automatically.
+2. Tracking new member join service messages so they can be deleted upon ban.
+3. Automatically muting the user and purging the comment when sent within the configured window.
+4. Sending an interactive dashboard directly to the admin with instant 1-click confirmation flows.
 
 ---
 
-### Environment Setup
+## ✨ Features
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/NotMmd/antinsfwbot.git
-   cd antinsfwbot
-   ```
-
-2. **Create a Python Virtual Environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure Environment Variables:**
-   Copy `.env.example` to `.env` and fill in your values:
-   ```bash
-   cp .env.example .env
-   ```
-
-   ```ini
-   BOT_TOKEN=YOUR_BOT_TOKEN_HERE
-   TARGET_GROUP_ID=-1001234567890
-   TARGET_CHANNEL_ID=-1001234567891
-   ADMIN_DM_ID=123456789
-   WINDOW_MINUTES=20
-   DB_PATH=~/antinsfwbot/posts.db
-   ```
+- 🎯 **Targeted Spam & Emoji Normalization:** Filters messages containing ONLY a single heart or suggestive emoji (`🩷❤️🧡💛💚🩵💙💜🖤🩶🤍🤎❤️‍🔥❤️‍🩹❣️💕💞💓💗💖💘💝🫦👄`). Cleans Unicode variation selectors (VS15/VS16, ZWJ, BOM) so hidden zero-width bypasses fail.
+- ⏱️ **Configurable Detection Window:** Set via `WINDOW_MINUTES` in `.env` (defaults to 30 minutes).
+- 🗄️ **Smart SQLite Storage:** Tracks channel posts, auto-forwarded discussion thread IDs, and member join message IDs across bot restarts.
+- 🧹 **Auto Clean Join Messages:** Deletes the user's initial `"User joined the group"` message when banned to keep the chat spotless.
+- 🚨 **Admin DM Control Panel:** Forwards the offending message to the admin's DM with interactive confirmation buttons:
+  - 🚷 **Ban Group:** Bans from discussion group & deletes join message.
+  - 🚫 **Ban Channel:** Bans from the main channel.
+  - 🔨 **Ban Both:** Complete purge from both channel and discussion group.
+  - 🔊 **Unmute:** Restores user permissions.
+  - ❌ **Keep Muted:** Keeps the user restricted.
+- 🛡️ **Permission Health Check:** Automatically tests group & channel admin rights on startup and alerts the admin if rights (like `can_restrict_members` or `can_delete_messages`) are missing, with an interactive retry button.
 
 ---
 
-### Running the Bot
+## 🚀 Setup & Installation
 
-#### Option 1: Direct Run (Development)
+### 1. Clone the repository
+```bash
+git clone https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
+```
+
+### 2. Create Virtual Environment
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+nano .env
+```
+
+Fill in your configuration:
+```ini
+BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TARGET_GROUP_ID=-1001234567890
+TARGET_CHANNEL_ID=-1001234567891
+ADMIN_DM_ID=123456789
+WINDOW_MINUTES=30
+DB_PATH=posts.db
+```
+
+---
+
+## ⚙️ Running the Bot
+
+### Option 1: Direct Execution
 ```bash
 python main.py
 ```
 
-#### Option 2: Systemd Service (Linux)
+### Option 2: Systemd Service (Production)
 Create `/etc/systemd/system/antinsfwbot.service`:
 ```ini
 [Unit]
-Description=Anti-NSFW Heart Emoji Bot
+Description=Anti-NSFW Heart Emoji Telegram Bot
 After=network.target
 
 [Service]
 Type=simple
-User=youruser
+User=mamad
 WorkingDirectory=/path/to/antinsfwbot
 ExecStart=/path/to/antinsfwbot/venv/bin/python main.py
 Restart=always
@@ -96,43 +102,19 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now antinsfwbot
 ```
 
-#### Option 3: Running with PM2
+---
 
-If you use **PM2** to manage your processes:
+## 🔒 Required Admin Permissions
 
-1. **Install PM2** (if not already installed):
-   ```bash
-   npm install -g pm2
-   ```
-
-2. **Start the bot using Python from the virtual environment:**
-   ```bash
-   pm2 start main.py --name "antinsfwbot" --interpreter ./venv/bin/python
-   ```
-
-3. **Save PM2 process list and configure autostart:**
-   ```bash
-   pm2 save
-   pm2 startup
-   ```
-
-4. **Useful PM2 Commands:**
-   - View logs: `pm2 logs antinsfwbot`
-   - Check status: `pm2 status`
-   - Restart bot: `pm2 restart antinsfwbot`
+Make sure the bot has admin privileges:
+- **In Discussion Group:**
+  - ✅ `Delete Messages`
+  - ✅ `Restrict Members`
+- **In Channel:**
+  - ✅ `Administrator` (with user restrict / post permissions)
 
 ---
 
-### Admin Bot Permissions
+## 📜 License
 
-Ensure the bot is added to:
-1. **Target Discussion Group:** Added as an Admin with permissions:
-   - ✅ `Delete Messages`
-   - ✅ `Restrict Members`
-2. **Target Channel:** Added as an Admin.
-
----
-
-### License
-
-This project is licensed under the [MIT License](LICENSE).
+Distributed under the [MIT License](LICENSE).
