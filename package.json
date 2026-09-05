@@ -1,0 +1,12 @@
+{
+  "name": "antinsfwbot",
+  "version": "2.0.0",
+  "description": "Telegram Anti-NSFW Bot running on Telegram Serverless",
+  "type": "module",
+  "scripts": {
+    "deploy": "tgcloud push && tgcloud migrate"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "latest"
+  }
+}
