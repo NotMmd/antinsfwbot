@@ -1,5 +1,11 @@
 # Telegram Anti-NSFW & Heart Emoji Shield Bot 🛡️
 
+> 🚀 **Looking for the Serverless edition?**  
+> Run this bot without a VPS or servers using Telegram's official infrastructure:  
+> 👉 **[NotMmd/antinsfwbot-serverless](https://github.com/NotMmd/antinsfwbot-serverless)**
+
+---
+
 An advanced, automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart/suggestive emoji spam posted under newly published channel posts within a customizable time window (default 30 minutes).
 
 When detected, the bot automatically deletes the offending message, mutes the user, deletes the user's join message, and sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to the admin's private chat.
