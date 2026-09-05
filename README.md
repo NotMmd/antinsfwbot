@@ -124,3 +124,7 @@ Make sure the bot has admin privileges:
 ## 📜 License
 
 Distributed under the [MIT License](LICENSE).
+
+
+---
+*Vibecoded with **Hermes Agent** and **Gemini 3.8 Flash**.*
