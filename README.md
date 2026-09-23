@@ -1,80 +1,83 @@
-# Telegram Anti-NSFW & Heart Emoji Shield Bot 🛡️
+# Telegram Anti-NSFW Shield Bot 🛡️
 
-An advanced, automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart/suggestive emoji spam posted under newly published channel posts within a customizable time window (default 30 minutes).
+An advanced, multi-branch Telegram moderation bot engineered to permanently solve the automated NSFW comment and funnel spam epidemic across discussion groups and community channels.
 
-When detected, the bot applies the configured moderation settings, then sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to admins' private chats.
+---
+
+## 💡 The Problem & The Modern Solution
+
+### Why Traditional Bots Fail
+Traditional anti-spam solutions rely on naive regex, keyword filters, or static emoji triggers (such as muting anyone who posts a single heart under a channel post). This causes two fatal problems:
+1. **High False Positives:** Legitimate community members cheering or reacting with emojis get unfairly muted.
+2. **Easy Bypasses:** Spam bots constantly change tactics — switching emojis, posting short greetings, or using zero-width characters.
+
+### The Real Vulnerability: Profile & Personal Channel Funnels
+Modern Telegram NSFW bots do not post explicit text directly in comments. Instead, they act as funnels:
+- They leave casual or innocent comments to secure the top spot.
+- Their Telegram profile features an attached **Personal Channel (`personal_chat`)**.
+- That personal channel hosts explicit previews, teaser media, and phishing/funnel links.
+
+### The System One Breakthrough (`mtproto` branch)
+By leveraging **MTProto** alongside specialized **System One decision models (TypeSafe Jev & Convai Laya)**, this bot inspects what standard Bot API bots cannot see:
+- 🔍 **Deep Profile Inspection:** Fetches the sender's bio, personal channel title, and channel username.
+- 📩 **Channel Post Verification:** Reads the pinned/preview message directly from their attached channel.
+- 🧠 **Instant Probabilistic Judgment (`noul`):** Passes the structured context to a lightweight System One model. Instead of paying for costly generative LLMs, System One decision engines evaluate the funnel in single-digit milliseconds at negligible cost (or 100% free locally with Laya).
+- 🚫 **Content-Agnostic Moderation:** Whether the bot posts a heart, a greeting, or random text, the underlying adult funnel is definitively identified and purged. Real users remain completely unaffected.
 
 ---
 
 ## 🌿 Available Editions & Branches
 
-This repository is maintained across dedicated branches for each runtime environment:
+This repository is maintained across dedicated branches tailored for different architectures and operational scales:
 
-| Branch | Stack & Runtime | Detection Engine | Storage | Best For |
+| Branch | Architecture & Runtime | Detection Engine | Cost & Speed | Best For |
 | :--- | :--- | :--- | :--- | :--- |
-| **`classic`** | Python (`python-telegram-bot` v22+) | Window & Emoji Heuristics | SQLite | Standard VPS & single-bot server setups |
-| **`mtproto`** | Python (`pyrotgfork` MTProto) | System One AI (Jev / Laya) + Deep Profile & Channel Inspection | SQLite | High-accuracy detection via attached personal channels |
-| **`telegram-serverless`** | Node.js (V8 Isolation via `@tgcloud/cli`) | Window & Emoji Heuristics | Native Telegram SQLite | 100% serverless hosting directly on Telegram cloud |
-| **`cloudflare-worker`** | JavaScript (Cloudflare Workers) | Window & Emoji Heuristics | Cloudflare D1 | Serverless edge deployment on Cloudflare with webhooks |
+| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **System One AI (Jev / Laya)** + Deep Profile & Personal Channel Inspection | Ultra-low latency, penny-fractions (or free via local Laya) | **Recommended:** Accurate, content-agnostic detection with zero false positives |
+| **`classic`** | Python (`python-telegram-bot` v22+) | Window & Emoji Heuristics | Free (Heuristic-based) | Simple VPS setups without AI API keys |
+| **`telegram-serverless`** | Node.js (V8 Isolation via `@tgcloud/cli`) | Window & Emoji Heuristics | Zero server cost (Telegram Cloud) | Running 100% on Telegram's official infrastructure |
+| **`cloudflare-worker`** | JavaScript (Cloudflare Workers) | Window & Emoji Heuristics | Free tier Cloudflare edge | Edge-hosted webhook setups using Cloudflare D1 |
 
 ---
 
-## 🎯 Why This Bot Exists
+## ✨ Core Features
 
-Automated NSFW bot accounts frequently target Telegram channel discussion groups by posting single heart/mouth emojis (`❤️`, `💗`, `❤️‍🔥`, `🫦`, `👄`) under newly published channel posts within minutes of release. 
-
-These userbots aim to stay top-of-comment so group members click their profile pictures/bios, leading to NSFW promotion channels or malware distribution.
-
-This bot intercepts and eliminates this spam pattern by:
-1. Learning channel post timestamps and discussion thread roots automatically.
-2. Tracking new member join service messages so they can be deleted upon ban.
-3. Automatically muting or banning the user and optionally purging the comment when sent within the configured window.
-4. Sending an interactive dashboard directly to the admin with instant 1-click confirmation flows.
-
----
-
-## ✨ Features
-
-- 🎯 **Targeted Spam & Emoji Normalization:** Filters messages containing ONLY a single heart or suggestive emoji (`🩷❤️🧡💛💚🩵💙💜🖤🩶🤍🤎❤️‍🔥❤️‍🩹❣️💕💞💓💗💖💘💝🫦👄`). Cleans Unicode variation selectors (VS15/VS16, ZWJ, BOM) so hidden zero-width bypasses fail.
-- ⏱️ **Configurable Detection Window:** Set via `WINDOW_MINUTES` in `.env` (defaults to 30 minutes).
-- 🗄️ **Smart SQLite Storage:** Tracks channel posts, auto-forwarded discussion thread IDs, and member join message IDs across bot restarts.
-- 🧹 **Auto Clean Join Messages:** Deletes the user's initial `"User joined the group"` message when banned to keep the chat spotless.
-- 🚨 **Admin DM Control Panel:** Forwards the offending message to the admin's DM with interactive confirmation buttons:
-  - 🚷 **Ban Group:** Bans from discussion group & deletes join message.
-  - 🚫 **Ban Channel:** Bans from the main channel.
-  - 🔨 **Ban Both:** Complete purge from both channel and discussion group.
-  - 🔊 **Unmute:** Restores user permissions.
-  - ❌ **Keep Muted:** Keeps the user restricted.
-- 🛡️ **Permission Health Check:** Automatically tests group & channel admin rights on startup and alerts the admin if rights (like `can_restrict_members` or `can_delete_messages`) are missing, with an interactive retry button.
-- ⚙️ **Live Moderation Settings:** Admins can use `/settings` or `/panel` in a private chat to toggle auto-ban, auto-delete, and admin alerts, and choose whether automatic bans apply to the group, channel, or both. Settings persist in SQLite and take effect on the next detected message.
+- 🧠 **Multi-Engine System One AI (`mtproto` branch):** Interacts natively with **TypeSafe Jev** and **Convai Laya** engines to make calibrated spam judgments.
+- 🗄️ **Intelligent Verdict Cache:** Evaluated user IDs and verdicts are cached in SQLite to prevent duplicate API requests and ensure instantaneous repeat checks.
+- 🧹 **Auto-Clean Join Messages:** Automatically identifies and purges `"User joined the group"` service messages when an offender is banned.
+- ⚙️ **Interactive In-Bot Admin Panel:** Send `/settings` or `/panel` in private chat to dynamically toggle:
+  - `[✅ Auto-Ban: ON / OFF]`
+  - `[✅ Delete Msg: ON / OFF]`
+  - `[🎯 Target Scope: Group / Channel / Both]`
+  - `[🤖 AI Engine: Jev / Laya]` *(on `mtproto` branch)*
+  - `[🔔 Admin Alerts: ON / OFF]`
+- 🚨 **Instant Admin Action Dashboard:** Detailed alerts sent to the admin's DM with direct buttons to Ban Group, Ban Channel, Ban Both, Unmute, or Dismiss.
 
 ---
 
-## 🚀 Setup & Installation (by Branch)
+## 🚀 Quickstart & Installation (by Branch)
+
+### 🌟 Recommended: `mtproto` Branch (System One AI)
+```bash
+git clone -b mtproto https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Set API_ID, API_HASH, BOT_TOKEN, and your SYSTEM_ONE_ENGINE (jev/laya)
+python main.py
+```
 
 ### Branch: `classic` (Python Telegram Bot)
 ```bash
 git clone -b classic https://github.com/NotMmd/antinsfwbot.git
 cd antinsfwbot
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 python main.py
 ```
 
-### Branch: `mtproto` (MTProto + System One AI)
-```bash
-git clone -b mtproto https://github.com/NotMmd/antinsfwbot.git
-cd antinsfwbot
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python main.py
-```
-
-### Branch: `telegram-serverless` (Telegram Cloud)
+### Branch: `telegram-serverless` (Telegram Official Cloud)
 ```bash
 git clone -b telegram-serverless https://github.com/NotMmd/antinsfwbot.git
 cd antinsfwbot
@@ -93,67 +96,6 @@ npx wrangler d1 migrations apply antinsfw-db --remote
 npx wrangler secret put BOT_TOKEN
 npm run deploy
 ```
-
----
-
-## ⚙️ Configuration (`.env`)
-
-```ini
-BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
-TARGET_GROUP_ID=-1001234567890
-TARGET_CHANNEL_ID=-1001234567891
-ADMIN_DM_ID=123456789
-ADMIN_IDS=123456789
-WINDOW_MINUTES=30
-DB_PATH=posts.db
-AUTO_BAN=false
-AUTO_DELETE=true
-BAN_SCOPE=group
-NOTIFY_ADMIN=true
-```
-
-`ADMIN_IDS` accepts a comma-separated list of admin Telegram user IDs. If omitted, `ADMIN_DM_ID` is used for admin authorization and alerts. The four moderation variables provide defaults; values saved from the inline settings panel are stored in SQLite and override those defaults for this configured group/channel pair.
-
-In a private chat with the bot, send `/settings` or `/panel` to change live settings.
-
----
-
-## ⚙️ Running as a Systemd Service
-
-Create `/etc/systemd/system/antinsfwbot.service`:
-```ini
-[Unit]
-Description=Anti-NSFW Heart Emoji Telegram Bot
-After=network.target
-
-[Service]
-Type=simple
-User=mamad
-WorkingDirectory=/path/to/antinsfwbot
-ExecStart=/path/to/antinsfwbot/venv/bin/python main.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now antinsfwbot
-```
-
----
-
-## 🔒 Required Admin Permissions
-
-Make sure the bot has admin privileges:
-- **In Discussion Group:**
-  - ✅ `Delete Messages`
-  - ✅ `Restrict Members`
-- **In Channel:**
-  - ✅ `Administrator` (with user restrict / post permissions)
 
 ---
 
