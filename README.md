@@ -1,14 +1,21 @@
 # Telegram Anti-NSFW & Heart Emoji Shield Bot 🛡️
 
-> 🚀 **Looking for the Serverless edition?**  
-> Run this bot without a VPS or servers using Telegram's official infrastructure:  
-> 👉 **[NotMmd/antinsfwbot-serverless](https://github.com/NotMmd/antinsfwbot-serverless)**
-
----
-
 An advanced, automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart/suggestive emoji spam posted under newly published channel posts within a customizable time window (default 30 minutes).
 
 When detected, the bot applies the configured moderation settings, then sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to admins' private chats.
+
+---
+
+## 🌿 Available Editions & Branches
+
+This repository is maintained across dedicated branches for each runtime environment:
+
+| Branch | Stack & Runtime | Detection Engine | Storage | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **`classic`** | Python (`python-telegram-bot` v22+) | Window & Emoji Heuristics | SQLite | Standard VPS & single-bot server setups |
+| **`mtproto`** | Python (`pyrotgfork` MTProto) | System One AI (Jev / Laya) + Deep Profile & Channel Inspection | SQLite | High-accuracy detection via attached personal channels |
+| **`telegram-serverless`** | Node.js (V8 Isolation via `@tgcloud/cli`) | Window & Emoji Heuristics | Native Telegram SQLite | 100% serverless hosting directly on Telegram cloud |
+| **`cloudflare-worker`** | JavaScript (Cloudflare Workers) | Window & Emoji Heuristics | Cloudflare D1 | Serverless edge deployment on Cloudflare with webhooks |
 
 ---
 
@@ -43,29 +50,54 @@ This bot intercepts and eliminates this spam pattern by:
 
 ---
 
-## 🚀 Setup & Installation
+## 🚀 Setup & Installation (by Branch)
 
-### 1. Clone the repository
+### Branch: `classic` (Python Telegram Bot)
 ```bash
-git clone https://github.com/NotMmd/antinsfwbot.git
+git clone -b classic https://github.com/NotMmd/antinsfwbot.git
 cd antinsfwbot
-```
-
-### 2. Create Virtual Environment
-```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 3. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
 cp .env.example .env
-nano .env
+python main.py
 ```
 
-Fill in your configuration:
+### Branch: `mtproto` (MTProto + System One AI)
+```bash
+git clone -b mtproto https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python main.py
+```
+
+### Branch: `telegram-serverless` (Telegram Cloud)
+```bash
+git clone -b telegram-serverless https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
+npm install
+npx @tgcloud/cli push
+npx @tgcloud/cli migrate --yes
+```
+
+### Branch: `cloudflare-worker` (Cloudflare Workers + D1)
+```bash
+git clone -b cloudflare-worker https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
+npm install
+npx wrangler d1 create antinsfw-db
+npx wrangler d1 migrations apply antinsfw-db --remote
+npx wrangler secret put BOT_TOKEN
+npm run deploy
+```
+
+---
+
+## ⚙️ Configuration (`.env`)
+
 ```ini
 BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TARGET_GROUP_ID=-1001234567890
@@ -80,20 +112,14 @@ BAN_SCOPE=group
 NOTIFY_ADMIN=true
 ```
 
-`ADMIN_IDS` accepts a comma-separated list of admin Telegram user IDs. If omitted, `ADMIN_DM_ID` is used for admin authorization and alerts. The four moderation variables provide defaults; values saved from the inline settings panel are stored in SQLite and override those defaults for this configured group/channel pair. When auto-ban is off, detected users are muted as before. The selected scope controls auto-ban destinations; users not banned from the group remain muted there.
+`ADMIN_IDS` accepts a comma-separated list of admin Telegram user IDs. If omitted, `ADMIN_DM_ID` is used for admin authorization and alerts. The four moderation variables provide defaults; values saved from the inline settings panel are stored in SQLite and override those defaults for this configured group/channel pair.
 
-In a private chat with the bot, send `/settings` or `/panel` to change the live settings.
+In a private chat with the bot, send `/settings` or `/panel` to change live settings.
 
 ---
 
-## ⚙️ Running the Bot
+## ⚙️ Running as a Systemd Service
 
-### Option 1: Direct Execution
-```bash
-python main.py
-```
-
-### Option 2: Systemd Service (Production)
 Create `/etc/systemd/system/antinsfwbot.service`:
 ```ini
 [Unit]
