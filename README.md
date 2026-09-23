@@ -4,25 +4,25 @@ An advanced, multi-branch Telegram moderation bot engineered to permanently solv
 
 ---
 
-## 💡 The Problem & The Modern Solution
+## 💡 The Core Limitation of Keyword & Emoji Detectors
 
-### Why Traditional Bots Fail
-Traditional anti-spam solutions rely on naive regex, keyword filters, or static emoji triggers (such as muting anyone who posts a single heart under a channel post). This causes two fatal problems:
-1. **High False Positives:** Legitimate community members cheering or reacting with emojis get unfairly muted.
-2. **Easy Bypasses:** Spam bots constantly change tactics — switching emojis, posting short greetings, or using zero-width characters.
+### The Real World Problem
+Traditional anti-spam solutions look solely at the **message text** (e.g., matching heart emojis or short words sent shortly after a channel post). This falls short in two fundamental ways:
+1. **Bots Don't Just Send Emojis:** Modern spam bots post natural greetings, compliments, random conversation starters, or context-aware phrases — completely bypassing static emoji or keyword filters.
+2. **Not Everyone Sending an Emoji Is a Bot:** Real community members frequently react with a single heart or expressive emoji to show support under a fresh channel post. Muting based on text alone catches innocent humans in the crossfire.
 
 ### The Real Vulnerability: Profile & Personal Channel Funnels
 Modern Telegram NSFW bots do not post explicit text directly in comments. Instead, they act as funnels:
-- They leave casual or innocent comments to secure the top spot.
+- They leave casual, varied comments to secure the top spot under new channel posts.
 - Their Telegram profile features an attached **Personal Channel (`personal_chat`)**.
 - That personal channel hosts explicit previews, teaser media, and phishing/funnel links.
 
 ### The System One Breakthrough (`mtproto` branch)
-By leveraging **MTProto** alongside specialized **System One decision models (TypeSafe Jev & Convai Laya)**, this bot inspects what standard Bot API bots cannot see:
+By inspecting the actual destination rather than guessing from the message text, the **`mtproto`** branch uses **MTProto** alongside specialized **System One decision models (TypeSafe Jev & Convai Laya)**:
 - 🔍 **Deep Profile Inspection:** Fetches the sender's bio, personal channel title, and channel username.
 - 📩 **Channel Post Verification:** Reads the pinned/preview message directly from their attached channel.
-- 🧠 **Instant Probabilistic Judgment (`noul`):** Passes the structured context to a lightweight System One model. Instead of paying for costly generative LLMs, System One decision engines evaluate the funnel in single-digit milliseconds at negligible cost (or 100% free locally with Laya).
-- 🚫 **Content-Agnostic Moderation:** Whether the bot posts a heart, a greeting, or random text, the underlying adult funnel is definitively identified and purged. Real users remain completely unaffected.
+- 🧠 **Instant Probabilistic Judgment (`noul`):** Passes the structured profile context to a lightweight System One model. Instead of paying for costly generative LLMs, System One decision engines evaluate the funnel in single-digit milliseconds at negligible cost (or 100% free locally with Laya).
+- 🚫 **Text-Agnostic Moderation:** Regardless of whether the bot sends an emoji, a greeting, or regular text, the underlying adult funnel is definitively identified and purged. Real users can freely react with emojis without getting muted.
 
 ---
 
@@ -32,7 +32,7 @@ This repository is maintained across dedicated branches tailored for different a
 
 | Branch | Architecture & Runtime | Detection Engine | Cost & Speed | Best For |
 | :--- | :--- | :--- | :--- | :--- |
-| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **System One AI (Jev / Laya)** + Deep Profile & Personal Channel Inspection | Ultra-low latency, penny-fractions (or free via local Laya) | **Recommended:** Accurate, content-agnostic detection with zero false positives |
+| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **System One AI (Jev / Laya)** + Deep Profile & Personal Channel Inspection | Ultra-low latency, penny-fractions (or free via local Laya) | **Recommended:** Accurate, text-agnostic detection with zero false positives |
 | **`classic`** | Python (`python-telegram-bot` v22+) | Window & Emoji Heuristics | Free (Heuristic-based) | Simple VPS setups without AI API keys |
 | **`telegram-serverless`** | Node.js (V8 Isolation via `@tgcloud/cli`) | Window & Emoji Heuristics | Zero server cost (Telegram Cloud) | Running 100% on Telegram's official infrastructure |
 | **`cloudflare-worker`** | JavaScript (Cloudflare Workers) | Window & Emoji Heuristics | Free tier Cloudflare edge | Edge-hosted webhook setups using Cloudflare D1 |
