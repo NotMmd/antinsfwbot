@@ -4,25 +4,25 @@ An advanced, multi-branch Telegram moderation bot engineered to permanently solv
 
 ---
 
-## 💡 The Core Limitation of Keyword & Emoji Detectors
+## 💡 The Core Limitation & The System One Solution
 
-### The Real World Problem
-Traditional anti-spam solutions look solely at the **message text** (e.g., matching heart emojis or short words sent shortly after a channel post). This falls short in two fundamental ways:
-1. **Bots Don't Just Send Emojis:** Modern spam bots post natural greetings, compliments, random conversation starters, or context-aware phrases — completely bypassing static emoji or keyword filters.
-2. **Not Everyone Sending an Emoji Is a Bot:** Real community members frequently react with a single heart or expressive emoji to show support under a fresh channel post. Muting based on text alone catches innocent humans in the crossfire.
+### Why Text & Emoji Matching Falls Short
+Other editions of this bot (like `classic` or the serverless variants) rely on matching specific emojis (like single hearts) sent right after a channel post. While simple and zero-cost, text-based matching has inherent limitations:
+1. **Bots Don't Only Send Emojis:** Some spam bots post regular text instead of emojis, slipping right past emoji filters.
+2. **Humans Send Emojis Too:** Real community members often react with a heart or expressive emoji under a new channel post. Blindly muting based on message content catches genuine users.
 
 ### The Real Vulnerability: Profile & Personal Channel Funnels
-Modern Telegram NSFW bots do not post explicit text directly in comments. Instead, they act as funnels:
-- They leave casual, varied comments to secure the top spot under new channel posts.
-- Their Telegram profile features an attached **Personal Channel (`personal_chat`)**.
+Modern Telegram NSFW bots don't need explicit words in the comments. The comment itself is just bait to get a high spot under the post. The real payload lives on their account:
+- Their Telegram profile has an attached **Personal Channel (`personal_chat`)**.
 - That personal channel hosts explicit previews, teaser media, and phishing/funnel links.
 
-### The System One Breakthrough (`mtproto` branch)
-By inspecting the actual destination rather than guessing from the message text, the **`mtproto`** branch uses **MTProto** alongside specialized **System One decision models (TypeSafe Jev & Convai Laya)**:
+### The System One Architecture (`mtproto` branch)
+Instead of guessing from the comment text, the **`mtproto`** branch uses **MTProto** alongside **System One decision models** (such as TypeSafe Jev, Convai Laya, or any compatible System One engine):
 - 🔍 **Deep Profile Inspection:** Fetches the sender's bio, personal channel title, and channel username.
 - 📩 **Channel Post Verification:** Reads the pinned/preview message directly from their attached channel.
-- 🧠 **Instant Probabilistic Judgment (`noul`):** Passes the structured profile context to a lightweight System One model. Instead of paying for costly generative LLMs, System One decision engines evaluate the funnel in single-digit milliseconds at negligible cost (or 100% free locally with Laya).
-- 🚫 **Text-Agnostic Moderation:** Regardless of whether the bot sends an emoji, a greeting, or regular text, the underlying adult funnel is definitively identified and purged. Real users can freely react with emojis without getting muted.
+- 🧠 **Instant Probabilistic Judgment (`noul`):** Passes structured profile and channel metadata to a System One decision engine. System One models make calibrated binary/probabilistic decisions in single-digit milliseconds without generative text overhead, costing fractions of a cent (or completely free when running an open-weights model locally).
+- 🔌 **Pluggable Engine Interface:** Built around a modular router. You aren't locked into one provider — easily configure models like **Jev**, **Laya**, or plug in custom System One decision endpoints via `.env` or the live in-bot panel.
+- 🚫 **Text-Agnostic Moderation:** Whether the bot leaves an emoji, a greeting, or regular text, the underlying adult funnel is identified and moderated. Real members can freely react with emojis without getting muted.
 
 ---
 
@@ -32,7 +32,7 @@ This repository is maintained across dedicated branches tailored for different a
 
 | Branch | Architecture & Runtime | Detection Engine | Cost & Speed | Best For |
 | :--- | :--- | :--- | :--- | :--- |
-| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **System One AI (Jev / Laya)** + Deep Profile & Personal Channel Inspection | Ultra-low latency, penny-fractions (or free via local Laya) | **Recommended:** Accurate, text-agnostic detection with zero false positives |
+| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **Pluggable System One AI** (Jev, Laya, etc.) + Deep Profile & Personal Channel Inspection | Millisecond latency, ultra-cheap (or free locally) | **Recommended:** Accurate, text-agnostic detection with zero false positives |
 | **`classic`** | Python (`python-telegram-bot` v22+) | Window & Emoji Heuristics | Free (Heuristic-based) | Simple VPS setups without AI API keys |
 | **`telegram-serverless`** | Node.js (V8 Isolation via `@tgcloud/cli`) | Window & Emoji Heuristics | Zero server cost (Telegram Cloud) | Running 100% on Telegram's official infrastructure |
 | **`cloudflare-worker`** | JavaScript (Cloudflare Workers) | Window & Emoji Heuristics | Free tier Cloudflare edge | Edge-hosted webhook setups using Cloudflare D1 |
@@ -41,14 +41,14 @@ This repository is maintained across dedicated branches tailored for different a
 
 ## ✨ Core Features
 
-- 🧠 **Multi-Engine System One AI (`mtproto` branch):** Interacts natively with **TypeSafe Jev** and **Convai Laya** engines to make calibrated spam judgments.
+- 🧠 **Pluggable System One AI (`mtproto` branch):** Flexible router supporting System One models like **TypeSafe Jev**, **Convai Laya**, and custom decision engines.
 - 🗄️ **Intelligent Verdict Cache:** Evaluated user IDs and verdicts are cached in SQLite to prevent duplicate API requests and ensure instantaneous repeat checks.
 - 🧹 **Auto-Clean Join Messages:** Automatically identifies and purges `"User joined the group"` service messages when an offender is banned.
 - ⚙️ **Interactive In-Bot Admin Panel:** Send `/settings` or `/panel` in private chat to dynamically toggle:
   - `[✅ Auto-Ban: ON / OFF]`
   - `[✅ Delete Msg: ON / OFF]`
   - `[🎯 Target Scope: Group / Channel / Both]`
-  - `[🤖 AI Engine: Jev / Laya]` *(on `mtproto` branch)*
+  - `[🤖 AI Engine]` *(on `mtproto` branch: switch active System One engine)*
   - `[🔔 Admin Alerts: ON / OFF]`
 - 🚨 **Instant Admin Action Dashboard:** Detailed alerts sent to the admin's DM with direct buttons to Ban Group, Ban Channel, Ban Both, Unmute, or Dismiss.
 
@@ -63,7 +63,7 @@ cd antinsfwbot
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Set API_ID, API_HASH, BOT_TOKEN, and your SYSTEM_ONE_ENGINE (jev/laya)
+# Set API_ID, API_HASH, BOT_TOKEN, and your SYSTEM_ONE_ENGINE
 python main.py
 ```
 
