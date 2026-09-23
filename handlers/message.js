@@ -2,6 +2,7 @@ import { api, db } from 'sdk';
 import { posts, threads, joinMessages } from 'schema';
 import { eq, desc } from 'sdk/db';
 import { CONFIG, isSingleHeart, escapeHtml } from 'lib/config';
+import { getSettings, settingsKeyboard, settingsText } from 'lib/settings';
 
 function getOriginDate(msg) {
   if (msg.sender_chat && msg.sender_chat.id === CONFIG.TARGET_CHANNEL_ID) {
@@ -60,6 +61,16 @@ export default async function (msg) {
         text: '👋 Anti-NSFW Bot is running serverless on Telegram.'
       });
     }
+    const command = (msg.text || '').trim().split(/\s+/)[0].split('@')[0];
+    if (msg.from && msg.from.id === CONFIG.ADMIN_USER_ID && ['/settings', '/panel'].includes(command)) {
+      const current = await getSettings();
+      await api.sendMessage({
+        chat_id: CONFIG.ADMIN_USER_ID,
+        text: settingsText(),
+        parse_mode: 'HTML',
+        reply_markup: settingsKeyboard(current),
+      });
+    }
     return;
   }
 
@@ -92,7 +103,7 @@ export default async function (msg) {
   }
 
   const user = msg.from;
-  if (!user || user.is_bot) return;
+  if (!user) return;
 
   const text = msg.text || '';
   if (!isSingleHeart(text)) return;
@@ -102,6 +113,8 @@ export default async function (msg) {
 
   const diffMins = (msg.date - postTimeSec) / 60.0;
   if (diffMins < 0 || diffMins > CONFIG.WINDOW_MINUTES) return;
+
+  const current = await getSettings();
 
   const userLink = `tg://user?id=${user.id}`;
   const usernameStr = user.username ? `@${user.username}` : 'No username';
@@ -131,50 +144,51 @@ export default async function (msg) {
     ]
   };
 
-  try {
-    await api.forwardMessage({
-      chat_id: CONFIG.ADMIN_USER_ID,
-      from_chat_id: CONFIG.TARGET_GROUP_ID,
-      message_id: msg.message_id
-    });
-  } catch (_) {}
+  if (current.adminNotifications) {
+    try {
+      await api.forwardMessage({
+        chat_id: CONFIG.ADMIN_USER_ID,
+        from_chat_id: CONFIG.TARGET_GROUP_ID,
+        message_id: msg.message_id
+      });
+    } catch (_) {}
 
-  try {
-    await api.sendMessage({
-      chat_id: CONFIG.ADMIN_USER_ID,
-      text: infoText,
-      parse_mode: 'HTML',
-      reply_markup: keyboard
-    });
-  } catch (_) {}
+    try {
+      await api.sendMessage({
+        chat_id: CONFIG.ADMIN_USER_ID,
+        text: infoText,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+      });
+    } catch (_) {}
+  }
 
-  try {
-    await api.deleteMessage({
-      chat_id: CONFIG.TARGET_GROUP_ID,
-      message_id: msg.message_id
-    });
-  } catch (_) {}
+  if (current.autoDelete) {
+    try {
+      await api.deleteMessage({
+        chat_id: CONFIG.TARGET_GROUP_ID,
+        message_id: msg.message_id
+      });
+    } catch (_) {}
+  }
 
-  try {
-    await api.restrictChatMember({
-      chat_id: CONFIG.TARGET_GROUP_ID,
-      user_id: user.id,
-      permissions: {
-        can_send_messages: false,
-        can_send_audios: false,
-        can_send_documents: false,
-        can_send_photos: false,
-        can_send_videos: false,
-        can_send_video_notes: false,
-        can_send_voice_notes: false,
-        can_send_polls: false,
-        can_send_other_messages: false,
-        can_add_web_page_previews: false,
-        can_change_info: false,
-        can_invite_users: false,
-        can_pin_messages: false,
-        can_manage_topics: false
-      }
-    });
-  } catch (_) {}
+  if (current.autoBan) {
+    const banTargets = current.banScope === 'both'
+      ? [CONFIG.TARGET_GROUP_ID, CONFIG.TARGET_CHANNEL_ID]
+      : [current.banScope === 'channel' ? CONFIG.TARGET_CHANNEL_ID : CONFIG.TARGET_GROUP_ID];
+    for (const chatId of banTargets) {
+      try {
+        await api.banChatMember({ chat_id: chatId, user_id: user.id });
+        if (chatId === CONFIG.TARGET_GROUP_ID) {
+          const joinRow = await db.select().from(joinMessages).where(eq(joinMessages.userId, user.id)).get();
+          if (joinRow && joinRow.msgId) {
+            try {
+              await api.deleteMessage({ chat_id: CONFIG.TARGET_GROUP_ID, message_id: joinRow.msgId });
+            } catch (_) {}
+            await db.delete(joinMessages).where(eq(joinMessages.userId, user.id)).run();
+          }
+        }
+      } catch (_) {}
+    }
+  }
 }

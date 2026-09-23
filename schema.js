@@ -15,3 +15,8 @@ export const joinMessages = table('join_messages', {
   msgId: integer('msg_id').notNull(),
   joinDate: text('join_date').notNull(),
 });
+
+export const settings = table('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+});

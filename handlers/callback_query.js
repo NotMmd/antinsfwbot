@@ -2,6 +2,7 @@ import { api, db } from 'sdk';
 import { joinMessages } from 'schema';
 import { eq } from 'sdk/db';
 import { CONFIG, escapeHtml } from 'lib/config';
+import { getSettings, setSetting, settingsKeyboard, settingsText } from 'lib/settings';
 
 export default async function (query) {
   if (!query || !query.from) return;
@@ -24,6 +25,40 @@ export default async function (query) {
   const data = query.data || '';
   const msg = query.message;
   if (!msg) return;
+
+  if (data.startsWith('settings:')) {
+    const name = data.slice('settings:'.length);
+    try {
+      const current = await getSettings();
+      if (name === 'banScope') {
+        const scopes = ['group', 'channel', 'both'];
+        const nextScope = scopes[(scopes.indexOf(current.banScope) + 1) % scopes.length];
+        await setSetting(name, nextScope);
+      } else if (['autoBan', 'autoDelete', 'adminNotifications'].includes(name)) {
+        await setSetting(name, !current[name]);
+      } else {
+        await api.answerCallbackQuery({ callback_query_id: query.id, text: 'Unknown setting.', show_alert: true });
+        return;
+      }
+
+      const updated = await getSettings();
+      try {
+        await api.editMessageText({
+          chat_id: msg.chat.id,
+          message_id: msg.message_id,
+          text: settingsText(),
+          parse_mode: 'HTML',
+          reply_markup: settingsKeyboard(updated),
+        });
+      } catch (_) {}
+      await api.answerCallbackQuery({ callback_query_id: query.id, text: 'Settings updated.' });
+    } catch (_) {
+      try {
+        await api.answerCallbackQuery({ callback_query_id: query.id, text: 'Could not save setting.', show_alert: true });
+      } catch (_) {}
+    }
+    return;
+  }
 
   const base = msg.text || '';
 
