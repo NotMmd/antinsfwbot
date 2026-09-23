@@ -8,7 +8,7 @@
 
 An advanced, automated Telegram moderation bot written in Python (`python-telegram-bot` v22+) that detects single heart/suggestive emoji spam posted under newly published channel posts within a customizable time window (default 30 minutes).
 
-When detected, the bot automatically deletes the offending message, mutes the user, deletes the user's join message, and sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to the admin's private chat.
+When detected, the bot applies the configured moderation settings, then sends an alert with interactive action buttons (**Ban Group**, **Ban Channel**, **Ban Both**, **Unmute**, **Keep Muted**) to admins' private chats.
 
 ---
 
@@ -21,7 +21,7 @@ These userbots aim to stay top-of-comment so group members click their profile p
 This bot intercepts and eliminates this spam pattern by:
 1. Learning channel post timestamps and discussion thread roots automatically.
 2. Tracking new member join service messages so they can be deleted upon ban.
-3. Automatically muting the user and purging the comment when sent within the configured window.
+3. Automatically muting or banning the user and optionally purging the comment when sent within the configured window.
 4. Sending an interactive dashboard directly to the admin with instant 1-click confirmation flows.
 
 ---
@@ -39,6 +39,7 @@ This bot intercepts and eliminates this spam pattern by:
   - 🔊 **Unmute:** Restores user permissions.
   - ❌ **Keep Muted:** Keeps the user restricted.
 - 🛡️ **Permission Health Check:** Automatically tests group & channel admin rights on startup and alerts the admin if rights (like `can_restrict_members` or `can_delete_messages`) are missing, with an interactive retry button.
+- ⚙️ **Live Moderation Settings:** Admins can use `/settings` or `/panel` in a private chat to toggle auto-ban, auto-delete, and admin alerts, and choose whether automatic bans apply to the group, channel, or both. Settings persist in SQLite and take effect on the next detected message.
 
 ---
 
@@ -70,9 +71,18 @@ BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
 TARGET_GROUP_ID=-1001234567890
 TARGET_CHANNEL_ID=-1001234567891
 ADMIN_DM_ID=123456789
+ADMIN_IDS=123456789
 WINDOW_MINUTES=30
 DB_PATH=posts.db
+AUTO_BAN=false
+AUTO_DELETE=true
+BAN_SCOPE=group
+NOTIFY_ADMIN=true
 ```
+
+`ADMIN_IDS` accepts a comma-separated list of admin Telegram user IDs. If omitted, `ADMIN_DM_ID` is used for admin authorization and alerts. The four moderation variables provide defaults; values saved from the inline settings panel are stored in SQLite and override those defaults for this configured group/channel pair. When auto-ban is off, detected users are muted as before. The selected scope controls auto-ban destinations; users not banned from the group remain muted there.
+
+In a private chat with the bot, send `/settings` or `/panel` to change the live settings.
 
 ---
 

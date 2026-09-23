@@ -2,6 +2,7 @@ import html
 import logging
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from telegram import (
@@ -19,6 +20,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from settings import get_settings, set_setting
 
 # Load .env file if python-dotenv is installed
 try:
@@ -36,6 +38,12 @@ TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 TARGET_GROUP_ID = int(os.getenv("TARGET_GROUP_ID", "-1001234567890"))
 TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", "-1001234567891"))
 ADMIN_DM_ID = int(os.getenv("ADMIN_DM_ID", "123456789"))
+_admin_ids_value = os.getenv("ADMIN_IDS", "").strip() or str(ADMIN_DM_ID)
+ADMIN_IDS = {
+    int(value.strip())
+    for value in _admin_ids_value.split(",")
+    if value.strip()
+}
 WINDOW_MINUTES = int(os.getenv("WINDOW_MINUTES", "30"))
 DB_PATH = os.path.expanduser(os.getenv("DB_PATH", "~/antinsfwbot/posts.db"))
 
@@ -70,9 +78,17 @@ def is_single_heart(text: str) -> bool:
 # --------------------------------------------------------------------------
 # Storage
 # --------------------------------------------------------------------------
+@contextmanager
 def _connect():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+    directory = os.path.dirname(DB_PATH)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -247,10 +263,12 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
         logging.info("diff %.2f outside 0-%d window", diff_mins, WINDOW_MINUTES)
         return
 
+    moderation_settings = get_settings(DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+
     user_link = f"tg://user?id={user.id}"
     username_str = f"@{user.username}" if user.username else "No username"
     info_text = (
-        "🚨 <b>Heart Emoji Auto-Mute Alert</b>\n\n"
+        "🚨 <b>Heart Emoji Moderation Alert</b>\n\n"
         f"• <b>User:</b> <a href=\"{user_link}\">{html.escape(user.first_name or 'user')}</a>\n"
         f"• <b>Username:</b> {html.escape(username_str)}\n"
         f"• <b>User ID:</b> <code>{user.id}</code>\n"
@@ -274,50 +292,136 @@ async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
     )
 
-    # Forward before deleting — the other order loses the evidence.
-    try:
-        await context.bot.forward_message(
-            chat_id=ADMIN_DM_ID,
-            from_chat_id=TARGET_GROUP_ID,
-            message_id=msg.message_id,
-        )
-    except Exception as e:
-        logging.error("Failed to forward message: %s", e)
+    if moderation_settings["notify_admin"]:
+        # Forward before deleting — the other order loses the evidence.
+        for admin_id in ADMIN_IDS:
+            try:
+                await context.bot.forward_message(
+                    chat_id=admin_id,
+                    from_chat_id=TARGET_GROUP_ID,
+                    message_id=msg.message_id,
+                )
+            except Exception as e:
+                logging.error("Failed to forward message to admin %s: %s", admin_id, e)
 
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_DM_ID,
-            text=info_text,
-            parse_mode="HTML",
-            reply_markup=keyboard,
-        )
-    except Exception as e:
-        logging.error("Failed to send DM: %s", e)
+            try:
+                await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=info_text,
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                )
+            except Exception as e:
+                logging.error("Failed to send alert to admin %s: %s", admin_id, e)
 
-    try:
-        await msg.delete()
-    except Exception as e:
-        logging.error("Failed to delete message: %s", e)
+    if moderation_settings["auto_delete"]:
+        try:
+            await msg.delete()
+        except Exception as e:
+            logging.error("Failed to delete message: %s", e)
 
-    try:
-        await context.bot.restrict_chat_member(
-            chat_id=TARGET_GROUP_ID,
-            user_id=user.id,
-            permissions=ChatPermissions.no_permissions(),
+    group_banned = False
+    if moderation_settings["auto_ban"]:
+        scope = moderation_settings["ban_scope"]
+        if scope in {"group", "both"}:
+            try:
+                await context.bot.ban_chat_member(chat_id=TARGET_GROUP_ID, user_id=user.id)
+                group_banned = True
+                join_msg_id = pop_join_message(user.id)
+                if join_msg_id:
+                    try:
+                        await context.bot.delete_message(
+                            chat_id=TARGET_GROUP_ID, message_id=join_msg_id
+                        )
+                    except Exception as e:
+                        logging.error("Failed to delete join message: %s", e)
+            except Exception as e:
+                logging.error("Failed to auto-ban user from group: %s", e)
+        if scope in {"channel", "both"}:
+            try:
+                await context.bot.ban_chat_member(chat_id=TARGET_CHANNEL_ID, user_id=user.id)
+            except Exception as e:
+                logging.error("Failed to auto-ban user from channel: %s", e)
+
+    if not group_banned:
+        try:
+            await context.bot.restrict_chat_member(
+                chat_id=TARGET_GROUP_ID,
+                user_id=user.id,
+                permissions=ChatPermissions.no_permissions(),
+            )
+        except Exception as e:
+            logging.error("Failed to mute user: %s", e)
+
+
+def settings_panel_markup(settings):
+    def state_label(name):
+        return "ON" if settings[name] else "OFF"
+
+    scope = settings["ban_scope"]
+    scope_buttons = [
+        InlineKeyboardButton(
+            f"{'✓ ' if scope == value else ''}{value.title()}",
+            callback_data=f"settings:scope:{value}",
         )
-    except Exception as e:
-        logging.error("Failed to mute user: %s", e)
+        for value in ("group", "channel", "both")
+    ]
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(f"Auto-ban: {state_label('auto_ban')}", callback_data="settings:toggle:auto_ban")],
+            [InlineKeyboardButton(f"Auto-delete: {state_label('auto_delete')}", callback_data="settings:toggle:auto_delete")],
+            scope_buttons,
+            [InlineKeyboardButton(f"Notify admin: {state_label('notify_admin')}", callback_data="settings:toggle:notify_admin")],
+        ]
+    )
+
+
+def settings_panel_text(settings):
+    return (
+        "⚙️ Moderation settings\n\n"
+        f"Auto-ban: {'ON' if settings['auto_ban'] else 'OFF'}\n"
+        f"Auto-delete: {'ON' if settings['auto_delete'] else 'OFF'}\n"
+        f"Ban scope: {settings['ban_scope']}\n"
+        f"Notify admin: {'ON' if settings['notify_admin'] else 'OFF'}"
+    )
+
+
+async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat = update.effective_chat
+    if not user or user.id not in ADMIN_IDS or not chat or chat.type != "private":
+        if update.effective_message:
+            await update.effective_message.reply_text("This command is available to admins in private chat.")
+        return
+
+    settings = get_settings(DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+    await update.effective_message.reply_text(
+        settings_panel_text(settings), reply_markup=settings_panel_markup(settings)
+    )
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query.from_user.id != ADMIN_DM_ID:
+    if query.from_user.id not in ADMIN_IDS:
         await query.answer("Not authorized.", show_alert=True)
         return
     await query.answer()
 
     data = query.data
     base = query.message.text_html or ""
+
+    if data.startswith("settings:"):
+        settings = get_settings(DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+        _, action, value = data.split(":", 2)
+        if action == "toggle" and value in {"auto_ban", "auto_delete", "notify_admin"}:
+            set_setting(value, not settings[value], DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+        elif action == "scope" and value in {"group", "channel", "both"}:
+            set_setting("ban_scope", value, DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+        settings = get_settings(DB_PATH, TARGET_GROUP_ID, TARGET_CHANNEL_ID)
+        await query.edit_message_text(
+            text=settings_panel_text(settings), reply_markup=settings_panel_markup(settings)
+        )
+        return
 
     if data == "retry_perm_check":
         issues = await check_bot_permissions(context.application, from_retry=True)
@@ -506,14 +610,18 @@ async def check_bot_permissions(app, from_retry=False):
 
     if not from_retry:
         for issue in issues:
-            await bot.send_message(
-                chat_id=ADMIN_DM_ID, text=f"⚠️ <b>Warning:</b> {issue}", parse_mode="HTML", reply_markup=retry_kb
-            )
+            for admin_id in ADMIN_IDS:
+                await bot.send_message(
+                    chat_id=admin_id,
+                    text=f"⚠️ <b>Warning:</b> {issue}",
+                    parse_mode="HTML",
+                    reply_markup=retry_kb,
+                )
     return issues
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user and update.effective_user.id == ADMIN_DM_ID:
+    if update.effective_user and update.effective_user.id in ADMIN_IDS:
         await update.effective_message.reply_text("👋 Bot is active and monitoring.")
 
 
@@ -524,6 +632,7 @@ async def post_init(app):
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler(["settings", "panel"], settings_command))
     app.add_handler(MessageHandler(filters.ChatType.CHANNEL, track_channel_post))
     # Must be registered before the general group handler: within one handler
     # group, only the first matching handler runs.
