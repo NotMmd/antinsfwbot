@@ -1,0 +1,8 @@
+BOT_TOKEN=replace_with_telegram_bot_token
+WEBHOOK_SECRET=replace_with_random_secret_token
+ADMIN_USER_ID=123456789
+WINDOW_MINUTES=10
+AUTO_BAN=true
+DELETE_MESSAGE=true
+TARGET_SCOPE=both
+ADMIN_ALERTS=true

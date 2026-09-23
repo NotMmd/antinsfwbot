@@ -1,0 +1,17 @@
+name = "antinsfwbot"
+main = "src/index.js"
+compatibility_date = "2026-09-23"
+
+[vars]
+ADMIN_USER_ID = "REPLACE_WITH_TELEGRAM_ADMIN_USER_ID"
+WINDOW_MINUTES = "10"
+AUTO_BAN = "true"
+DELETE_MESSAGE = "true"
+TARGET_SCOPE = "both"
+ADMIN_ALERTS = "true"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "antinsfwbot-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
