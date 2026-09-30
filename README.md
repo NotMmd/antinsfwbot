@@ -1,117 +1,122 @@
-# AntiNSFWBot on Cloudflare Workers
+# Telegram Anti-NSFW Shield Bot 🛡️ (`cloudflare-worker` edition)
 
-Telegram moderation bot built as a standard ES module Worker. It receives webhook updates, tracks channel posts and discussion threads in D1, detects heart emoji messages in a configurable time window, optionally restricts users and deletes messages, and sends an admin alert with moderation actions.
+An automated, ultra-fast Telegram moderation bot deployed on **Cloudflare Workers** with persistent storage powered by **Cloudflare D1**.
 
-## Requirements
+Delivers global low-latency execution, zero server maintenance, and full free-tier compatibility on Cloudflare's edge network.
 
-- Node.js 20 or later and npm
-- A Cloudflare account with Workers and D1 enabled
+---
+
+## 🧭 Repository Editions
+
+| Branch | Architecture & Runtime | Detection Engine | Storage | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **`cloudflare-worker`** (Current) | JavaScript (Cloudflare Workers) | Time Window + Emoji Heuristics | Cloudflare D1 | Serverless edge deployment, generous free tier |
+| **`mtproto`** ⭐ | Python (`pyrotgfork` MTProto) | **Pluggable System One AI** (Jev, Laya) + Profile Inspection | SQLite | Highly accurate, text-agnostic AI funnel detection |
+| **`classic`** | Python (`python-telegram-bot`) | Time Window + Emoji Heuristics | SQLite | Standard VPS setups |
+| **`telegram-serverless`** | Node.js (Telegram Cloud `@tgcloud/cli`) | Time Window + Emoji Heuristics | Native SQLite | 100% serverless directly inside Telegram infrastructure |
+
+---
+
+## 🎯 Architecture Highlights
+
+- **Standard Fetch Handler:** Processes incoming Telegram updates via `POST /webhook` (or root `/`).
+- **Webhook Security:** Verifies incoming requests against `X-Telegram-Bot-Api-Secret-Token`.
+- **Edge Storage (D1):** Stores posts, thread mappings, join message records, and live admin panel settings.
+- **In-Bot Live Panel:** Authorized admins can send `/settings` or `/panel` in private chat to toggle:
+  - `[Auto-Ban: ON / OFF]`
+  - `[Delete Msg: ON / OFF]`
+  - `[Target Scope: Group / Channel / Both]`
+  - `[Admin Alerts: ON / OFF]`
+
+---
+
+## 🚀 Setup & Deployment
+
+### 1. Prerequisites
+- [Node.js](https://nodejs.org) installed
+- A Cloudflare account with the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- The numeric Telegram user ID for the bot administrator
 
-## 1. Install and create the D1 database
+### 2. Installation
+```bash
+git clone -b cloudflare-worker https://github.com/NotMmd/antinsfwbot.git
+cd antinsfwbot
 
-```sh
 npm install
-npm run db:create
 ```
 
-Copy the `database_id` printed by Wrangler into `wrangler.toml`, replacing `REPLACE_WITH_D1_DATABASE_ID`. Set `ADMIN_USER_ID` there too, replacing its placeholder. Keep `database_name` as `antinsfwbot-db`, or update it consistently in `wrangler.toml` and the package scripts.
-
-Apply the initial schema locally and remotely:
-
-```sh
-npm run db:migrate:local
-npm run db:migrate:remote
+### 3. Initialize Cloudflare D1 Database
+Create the database:
+```bash
+npx wrangler d1 create antinsfw-db
+```
+Copy the returned `database_id` and update `wrangler.toml`:
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "antinsfw-db"
+database_id = "your-database-id-here"
 ```
 
-The migration is `migrations/0001_initial.sql`. To inspect databases or migration state:
+Apply database migrations:
+```bash
+# Local testing
+npx wrangler d1 migrations apply antinsfw-db --local
 
-```sh
-npx wrangler d1 list
-npx wrangler d1 migrations list antinsfwbot-db --local
-npx wrangler d1 migrations list antinsfwbot-db --remote
+# Production
+npx wrangler d1 migrations apply antinsfw-db --remote
 ```
 
-## 2. Configure secrets and settings
-
-For local development, copy `.dev.vars.example` to `.dev.vars` and set `BOT_TOKEN`, `WEBHOOK_SECRET`, and `ADMIN_USER_ID`:
-
-```sh
-cp .dev.vars.example .dev.vars
-```
-
-For production, add secrets through Wrangler. Do not put bot tokens in `wrangler.toml` or commit them:
-
-```sh
+### 4. Configure Secrets & Environment
+Set your production bot token:
+```bash
 npx wrangler secret put BOT_TOKEN
+```
+
+Optionally set a secret token for webhook verification:
+```bash
 npx wrangler secret put WEBHOOK_SECRET
 ```
 
-`ADMIN_USER_ID`, `WINDOW_MINUTES`, `AUTO_BAN`, `DELETE_MESSAGE`, `TARGET_SCOPE`, and `ADMIN_ALERTS` can be configured as Wrangler vars in `wrangler.toml`. D1 settings saved from the bot panel override these fallback values. A D1 setting stays authoritative until changed from the panel; changing a Wrangler fallback does not overwrite a saved setting.
-
-## 3. Run locally
-
-```sh
-npm run dev
+Configure your environment variables in `wrangler.toml`:
+```toml
+[vars]
+TARGET_GROUP_ID = "-1001234567890"
+TARGET_CHANNEL_ID = "-1001234567891"
+ADMIN_USER_ID = "123456789"
+WINDOW_MINUTES = "30"
+AUTO_BAN = "false"
+DELETE_MESSAGE = "true"
+TARGET_SCOPE = "both"
+ADMIN_ALERTS = "true"
 ```
 
-Wrangler prints a local URL. Point a Telegram webhook at a publicly reachable HTTPS tunnel to that URL plus `/webhook`, and set the same webhook secret as `WEBHOOK_SECRET`. The Worker also accepts updates at `/`.
-
-## 4. Deploy and register the Telegram webhook
-
-```sh
+### 5. Deploy & Set Webhook
+Deploy to Cloudflare Workers:
+```bash
 npm run deploy
 ```
 
-Use the deployed `workers.dev` URL or a custom domain as the webhook endpoint. Register the webhook and secret token with Telegram (replace the values):
-
-```sh
+Register your worker URL with Telegram:
+```bash
 curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
-  -H 'content-type: application/json' \
-  -d '{"url":"https://<YOUR_WORKER_HOST>/webhook","secret_token":"<WEBHOOK_SECRET>"}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://<YOUR_WORKER_NAME>.<YOUR_SUBDOMAIN>.workers.dev/webhook",
+    "secret_token": "<YOUR_WEBHOOK_SECRET>"
+  }'
 ```
 
-Telegram sends `X-Telegram-Bot-Api-Secret-Token`; the Worker checks it when `WEBHOOK_SECRET` is set. The secret token must use Telegram's accepted characters and length. Check registration with:
-
-```sh
+Verify webhook status:
+```bash
 curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 ```
 
-The bot needs permission to read messages and delete messages in the discussion group. To apply restrictions, promote it to an administrator with permission to restrict members. Channel posts must reach the bot as updates; add the bot to the channel as an administrator. Add it to the linked discussion group as well.
+---
 
-## Moderation behavior
+## 📜 License
 
-- The Worker stores channel post IDs and timestamps, and associates group forum threads with a channel post when a forwarded channel message is replied to.
-- For a group message it looks for a forwarded channel origin, then a stored discussion-thread association, then the latest stored channel post.
-- A message or caption containing a recognized heart glyph qualifies when its timestamp is no more than `WINDOW_MINUTES` after that post.
-- `AUTO_BAN=true` applies a one-hour restriction (mute) in the group. `DELETE_MESSAGE=true` deletes the message after attempting to forward it to the administrator. Both settings default to enabled.
-- Admin alerts include buttons for a permanent ban, unmute, delete, or dismissal. The buttons are restricted to `ADMIN_USER_ID`.
-- `TARGET_SCOPE` accepts `group`, `channel`, or `both`. Channel posts are saved for origin resolution; selecting `channel` also checks heart-bearing channel posts themselves. Telegram channel posts generally have no individual member to restrict.
-- Admin moderation calls can fail if the bot lacks Telegram permissions. Failures are logged in Worker logs; they do not stop other actions.
+Distributed under the [MIT License](LICENSE).
 
-## Admin settings panel
-
-Open a private chat with the bot as the configured administrator and send `/settings` or `/panel`. Tap each inline button to cycle or toggle the setting. Changes are stored in D1 and the keyboard refreshes in place.
-
-- **Auto-Ban**: apply or stop the automatic one-hour restriction in groups.
-- **Delete Msg**: delete or retain qualifying group messages after the admin-forward attempt.
-- **Target Scope**: cycle through group, channel, and both.
-- **Admin Alerts**: send or stop forwarding and alerts to the admin.
-
-The panel commands and callbacks are ignored or rejected for other Telegram accounts. To clear a saved setting and return to its environment fallback, remove it from D1:
-
-```sh
-npx wrangler d1 execute antinsfwbot-db --remote \
-  --command="DELETE FROM settings WHERE key='auto_ban';"
-```
-
-Use one of `auto_ban`, `delete_message`, `admin_alerts`, or `target_scope` as the key.
-
-## Wrangler scripts
-
-- `npm run dev` — run the Worker locally
-- `npm run deploy` — deploy the Worker
-- `npm run db:create` — create the D1 database
-- `npm run db:migrate:local` — apply migrations to local D1
-- `npm run db:migrate:remote` — apply migrations to production D1
+---
+<sub>⚡ Vibecoded with **Hermes Agent** and **Gemini 3.8 Flash**.</sub>
